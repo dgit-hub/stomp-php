@@ -558,26 +558,10 @@ class Stomp
             return false;
         }
 
-        $rb = 1024;
-        $data = '';
-        $end = false;
-
-        do {
-            $read = fgets($this->_socket, $rb);
-            if ($read === false || $read === "") {
-                $this->_reconnect();
-                return $this->readFrame();
-            }
-            $data .= $read;
-            if (strpos($data, "\x00") !== false) {
-                $end = true;
-                $data = trim($data, "\n");
-            }
-            $len = strlen($data);
-        } while ($len < 2 || $end == false);
-
-        list ($header, $body) = explode("\n\n", $data, 2);
-        $header = explode("\n", $header);
+        // Read command and headers from socket.
+        // The end of this section is denoted by two newlines.
+        $data = $this->readFromSocket("\n\n",null);
+        $header = explode("\n", $data);
         $headers = array();
         $command = null;
         foreach ($header as $v) {
@@ -588,13 +572,53 @@ class Stomp
                 $command = $v;
             }
         }
-        $frame = new Frame($command, $headers, trim($body));
+
+        // If the data being returned is binary, the content-length will be set
+        if (array_key_exists('content-length', $headers))
+        {
+            $contentLength = $headers['content-length'];
+            $body = $this->readFromSocket(null, $contentLength);
+        }
+        else // The data being returned is a string.
+        {
+            $body = $this->readFromSocket("\x00",null);
+        }
+
+        $frame = new Frame($command, $headers, $body);
         if (isset($frame->headers['transformation']) && $frame->headers['transformation'] == 'jms-map-json') {
             return new Map($frame);
         } else {
             return $frame;
         }
         return $frame;
+    }
+
+    private function readFromSocket($delimeter, $contentLength)
+    {
+        $rb = 1024;
+        $data = '';
+        $end = false;
+        $readLength = 0;
+
+        do
+        {
+            $read = fgets($this->_socket, $rb);
+            if ($read === false || $read === "") {
+                $this->_reconnect();
+                return $this->readFrame();
+            }
+            $data .= $read;
+            $readLength += strlen($read);
+            if (!empty($contentLength) && $readLength >= $contentLength)
+            {
+                $end = true;
+            }
+            else if (!empty($delimeter) && strpos($data, $delimeter) !== false) {
+                $end = true;
+                $data = trim($data, "\n");
+            }
+        } while ($end == false);
+        return $data;
     }
 
     /**
