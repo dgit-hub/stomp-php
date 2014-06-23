@@ -561,7 +561,9 @@ class Stomp
         // Read command and headers from socket.
         // The end of this section is denoted by two newlines.
         $data = $this->readFromSocket("\n\n",null);
-        $header = explode("\n", $data);
+        
+        $header = preg_split('/(?<!\\\)\n/', $data);
+
         $headers = array();
         $command = null;
         foreach ($header as $v) {
@@ -613,7 +615,8 @@ class Stomp
             {
                 $end = true;
             }
-            else if (!empty($delimeter) && strpos($data, $delimeter) !== false) {
+            else if (!empty($delimeter) && strpos($data, $delimeter) !== false)
+			{
                 $end = true;
                 $data = trim($data, "\n");
             }
