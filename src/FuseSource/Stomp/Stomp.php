@@ -568,7 +568,7 @@ class Stomp
         $command = null;
         foreach ($header as $v) {
             if (isset($command)) {
-                list ($name, $value) = explode(':', $v, 2);
+                @list ($name, $value) = explode(':', $v, 2);
                 $headers[$name] = $value;
             } else {
                 $command = $v;
